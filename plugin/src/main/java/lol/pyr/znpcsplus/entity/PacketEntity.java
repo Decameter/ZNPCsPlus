@@ -8,27 +8,34 @@ import lol.pyr.znpcsplus.api.entity.EntityProperty;
 import lol.pyr.znpcsplus.api.entity.PropertyHolder;
 import lol.pyr.znpcsplus.packets.PacketFactory;
 import lol.pyr.znpcsplus.reflection.Reflections;
+import lol.pyr.znpcsplus.util.FutureUtil;
 import lol.pyr.znpcsplus.util.NpcLocation;
+import lol.pyr.znpcsplus.util.Viewable;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.Collection;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 public class PacketEntity implements PropertyHolder {
     private final PacketFactory packetFactory;
 
     private final PropertyHolder properties;
+    private final Viewable viewable;
     private final int entityId;
     private final UUID uuid;
 
     private final EntityType type;
     private NpcLocation location;
 
-    public PacketEntity(PacketFactory packetFactory, PropertyHolder properties, EntityType type, NpcLocation location) {
+    private PacketEntity vehicle;
+    private Integer vehicleId;
+    private List<Integer> passengers;
+
+    public PacketEntity(PacketFactory packetFactory, PropertyHolder properties, Viewable viewable, EntityType type, NpcLocation location) {
         this.packetFactory = packetFactory;
         this.properties = properties;
+        this.viewable = viewable;
         this.entityId = reserveEntityID();
         this.uuid = UUID.randomUUID();
         this.type = type;
@@ -51,22 +58,117 @@ public class PacketEntity implements PropertyHolder {
         return type;
     }
 
-    public void setLocation(NpcLocation location, Collection<Player> viewers) {
+    public void setLocation(NpcLocation location) {
         this.location = location;
-        for (Player viewer : viewers) packetFactory.teleportEntity(viewer, this);
+        if (vehicle != null) {
+            vehicle.setLocation(location.withY(location.getY() - 0.9));
+            return;
+        }
+        for (Player viewer : viewable.getViewers()) packetFactory.teleportEntity(viewer, this);
     }
 
-    public void spawn(Player player) {
-        if (type == EntityTypes.PLAYER) packetFactory.spawnPlayer(player, this, properties);
-        else packetFactory.spawnEntity(player, this, properties);
+    public CompletableFuture<Void> spawn(Player player) {
+        return FutureUtil.exceptionPrintingRunAsync(() -> {
+            if (type == EntityTypes.PLAYER) packetFactory.spawnPlayer(player, this, properties).join();
+            else packetFactory.spawnEntity(player, this, properties);
+            if (vehicleId != null) {
+                packetFactory.setPassengers(player, vehicleId, this.getEntityId());
+            }
+            if (passengers != null) {
+                packetFactory.setPassengers(player, this.getEntityId(), passengers.stream().mapToInt(Integer::intValue).toArray());
+            }
+        });
     }
 
     public void setHeadRotation(Player player, float yaw, float pitch) {
         packetFactory.sendHeadRotation(player, this, yaw, pitch);
     }
 
+    public PacketEntity getVehicle() {
+        return vehicle;
+    }
+
+    public Viewable getViewable() {
+        return viewable;
+    }
+
+    public void setVehicleId(Integer vehicleId) {
+        if (this.vehicle != null) {
+            for (Player player : viewable.getViewers()) {
+                packetFactory.setPassengers(player, this.vehicle.getEntityId());
+                this.vehicle.despawn(player);
+                packetFactory.teleportEntity(player, this);
+            }
+        } else if (this.vehicleId != null) {
+            for (Player player : viewable.getViewers()) {
+                packetFactory.setPassengers(player, this.vehicleId);
+            }
+        }
+        this.vehicleId = vehicleId;
+        if (vehicleId == null) return;
+
+        for (Player player : viewable.getViewers()) {
+            packetFactory.setPassengers(player, this.getEntityId(), vehicleId);
+        }
+    }
+
+    public void setVehicle(PacketEntity vehicle) {
+        // remove old vehicle
+        if (this.vehicle != null) {
+            for (Player player : viewable.getViewers()) {
+                packetFactory.setPassengers(player, this.vehicle.getEntityId());
+                this.vehicle.despawn(player);
+                packetFactory.teleportEntity(player, this);
+            }
+        } else if (this.vehicleId != null) {
+            for (Player player : viewable.getViewers()) {
+                packetFactory.setPassengers(player, this.vehicleId);
+            }
+        }
+
+        this.vehicle = vehicle;
+        if (this.vehicle == null) return;
+
+        vehicle.setLocation(location.withY(location.getY() - 0.9));
+        for (Player player : viewable.getViewers()) {
+            vehicle.spawn(player).thenRun(() -> {
+                packetFactory.setPassengers(player, vehicle.getEntityId(), this.getEntityId());
+            });
+        }
+    }
+
+    public Integer getVehicleId() {
+        return vehicleId;
+    }
+
+    public List<Integer> getPassengers() {
+        return passengers == null ? Collections.emptyList() : passengers;
+    }
+
+    public void addPassenger(int entityId) {
+        if (passengers == null) {
+            passengers = new ArrayList<>();
+        }
+        passengers.add(entityId);
+        for (Player player : viewable.getViewers()) {
+            packetFactory.setPassengers(player, this.getEntityId(), passengers.stream().mapToInt(Integer::intValue).toArray());
+        }
+    }
+
+    public void removePassenger(int entityId) {
+        if (passengers == null) return;
+        passengers.remove(entityId);
+        for (Player player : viewable.getViewers()) {
+            packetFactory.setPassengers(player, this.getEntityId(), passengers.stream().mapToInt(Integer::intValue).toArray());
+        }
+        if (passengers.isEmpty()) {
+            passengers = null;
+        }
+    }
+
     public void despawn(Player player) {
         packetFactory.destroyEntity(player, this, properties);
+        if (vehicle != null) vehicle.despawn(player);
     }
 
     public void refreshMeta(Player player) {

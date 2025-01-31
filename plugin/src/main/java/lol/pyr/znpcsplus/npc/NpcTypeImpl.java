@@ -114,12 +114,15 @@ public class NpcTypeImpl implements NpcType {
 
         public NpcTypeImpl build() {
             ServerVersion version = PacketEvents.getAPI().getServerManager().getVersion();
-            addProperties("fire", "invisible", "silent", "look", "look_distance", "view_distance",
+            addProperties("fire", "invisible", "silent", "look", "look_distance", "look_return", "view_distance",
                     "potion_color", "potion_ambient", "display_name", "permission_required",
                     "player_knockback", "player_knockback_exempt_permission", "player_knockback_distance", "player_knockback_vertical",
                     "player_knockback_horizontal", "player_knockback_cooldown", "player_knockback_sound", "player_knockback_sound_name",
                     "player_knockback_sound_volume", "player_knockback_sound_pitch");
             if (!type.equals(EntityTypes.PLAYER)) addProperties("dinnerbone");
+            if (EntityTypes.isTypeInstanceOf(type, EntityTypes.LIVINGENTITY)) {
+                addProperties("health", "attribute_max_health");
+            }
             // TODO: make this look nicer after completing the rest of the properties
             if (version.isNewerThanOrEquals(ServerVersion.V_1_9)) addProperties("glow");
             if (version.isNewerThanOrEquals(ServerVersion.V_1_14)) {
@@ -142,6 +145,9 @@ public class NpcTypeImpl implements NpcType {
                 addProperties("has_chest");
             } else if (version.isOlderThan(ServerVersion.V_1_11) && type.equals(EntityTypes.HORSE)) {
                 addProperties("has_chest");
+            }
+            if (version.isOlderThan(ServerVersion.V_1_11) && EntityTypes.isTypeInstanceOf(type, EntityTypes.SKELETON)) {
+                addProperties("skeleton_type");
             }
             if (EntityTypes.isTypeInstanceOf(type, EntityTypes.ABSTRACT_EVO_ILLU_ILLAGER)) {
                 addProperties("spell");
@@ -174,6 +180,11 @@ public class NpcTypeImpl implements NpcType {
             if (version.isNewerThanOrEquals(ServerVersion.V_1_20_5)) {
                 if (EntityTypes.isTypeInstanceOf(type, EntityTypes.WOLF)) {
                     addProperties("wolf_variant");
+                }
+            }
+            if (version.isNewerThanOrEquals(ServerVersion.V_1_21_4)) {
+                if (EntityTypes.isTypeInstanceOf(type, EntityTypes.CREAKING)) {
+                    addProperties("creaking_crumbling");
                 }
             }
             return new NpcTypeImpl(name, type, hologramOffset, new HashSet<>(allowedProperties), defaultProperties);

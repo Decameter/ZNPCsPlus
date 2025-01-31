@@ -2,6 +2,7 @@ package lol.pyr.znpcsplus.entity;
 
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.manager.server.ServerVersion;
+import com.github.retrooper.packetevents.protocol.attribute.Attributes;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityDataTypes;
 import com.github.retrooper.packetevents.protocol.entity.pose.EntityPose;
 import com.github.retrooper.packetevents.protocol.nbt.NBTCompound;
@@ -15,6 +16,7 @@ import lol.pyr.znpcsplus.api.entity.EntityPropertyRegistry;
 import lol.pyr.znpcsplus.api.skin.SkinDescriptor;
 import lol.pyr.znpcsplus.config.ConfigManager;
 import lol.pyr.znpcsplus.entity.properties.*;
+import lol.pyr.znpcsplus.entity.properties.attributes.AttributeProperty;
 import lol.pyr.znpcsplus.entity.properties.villager.VillagerLevelProperty;
 import lol.pyr.znpcsplus.entity.properties.villager.VillagerProfessionProperty;
 import lol.pyr.znpcsplus.entity.properties.villager.VillagerTypeProperty;
@@ -32,18 +34,19 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 1.8  <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=7415">...</a>
- * 1.9  <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=7968">...</a>
- * 1.10 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=8241">...</a>
- * 1.11 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=8534">...</a>
- * 1.12 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=14048">...</a>
- * 1.13 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=14800">...</a>
- * 1.14 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=15240">...</a>
- * 1.15 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=15991">...</a>
- * 1.16 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=16539">...</a>
- * 1.17 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=17521">...</a>
- * 1.18-1.19 <a href="https://wiki.vg/index.php?title=Entity_metadata&oldid=18191">...</a>
- * 1.20 <a href="https://wiki.vg/index.php?title=Entity_metadata">...</a>
+ * 1.8  <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2767708">...</a>
+ * 1.9  <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768074">...</a>
+ * 1.10 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768201">...</a>
+ * 1.11 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768444">...</a>
+ * 1.12 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768647">...</a>
+ * 1.13 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768701">...</a>
+ * 1.14 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768716">...</a>
+ * 1.15 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2768877">...</a>
+ * 1.16 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2769100">...</a>
+ * 1.17 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2769318">...</a>
+ * 1.18-1.19 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2769409">...</a>
+ * 1.20 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata?oldid=2769476">...</a>
+ * 1.21 <a href="https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Entity_metadata">...</a>
  */
 @SuppressWarnings("unchecked")
 public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
@@ -90,6 +93,7 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         registerEnumSerializer(Sound.class);
         registerEnumSerializer(ArmadilloState.class);
         registerEnumSerializer(WoldVariant.class);
+        registerEnumSerializer(SkeletonType.class);
 
         registerPrimitiveSerializers(Integer.class, Boolean.class, Double.class, Float.class, Long.class, Short.class, Byte.class, String.class);
 
@@ -124,6 +128,7 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
 
         register(new DummyProperty<>("look", LookType.FIXED));
         register(new DummyProperty<>("look_distance", configManager.getConfig().lookPropertyDistance()));
+        register(new DummyProperty<>("look_return", false));
         register(new DummyProperty<>("view_distance", configManager.getConfig().viewDistance()));
 
         register(new DummyProperty<>("permission_required", false));
@@ -150,6 +155,16 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         register(new HologramItemProperty());
         linkProperties("glow", "fire", "invisible");
         register(new BooleanProperty("silent", 4, false, legacyBooleans));
+
+        // Attribute Max Health
+        register(new AttributeProperty(packetFactory, "attribute_max_health", Attributes.MAX_HEALTH));
+
+        // Health - LivingEntity
+        int healthIndex = 6;
+        if (ver.isNewerThanOrEquals(ServerVersion.V_1_17)) healthIndex = 9;
+        else if (ver.isNewerThanOrEquals(ServerVersion.V_1_14)) healthIndex = 8;
+        else if (ver.isNewerThanOrEquals(ServerVersion.V_1_10)) healthIndex = 7;
+        register(new HealthProperty(healthIndex));
 
         final int tameableIndex;
         if (ver.isNewerThanOrEquals(ServerVersion.V_1_17)) tameableIndex = 17;
@@ -181,6 +196,8 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         } else {
             register(new BooleanProperty("baby", babyIndex, false, legacyBooleans));
         }
+
+        register(new EntitySittingProperty(packetFactory, this));
 
         // Player
         register(new DummyProperty<>("skin", SkinDescriptor.class, false));
@@ -436,6 +453,12 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         witherIndex += 3; // skip the first 3 indexes, will be used for the other properties later
         register(new IntegerProperty("invulnerable_time", witherIndex, 0, false));
 
+        // Skeleton
+        if (ver.isOlderThan(ServerVersion.V_1_11)) {
+            if (legacyBooleans) register(new EncodedByteProperty<>("skeleton_type", SkeletonType.NORMAL, 13, SkeletonType::getLegacyId));
+            else register(new EncodedIntegerProperty<>("skeleton_type", SkeletonType.NORMAL, ver.isOlderThan(ServerVersion.V_1_10) ? 11 : 12, Enum::ordinal));
+        }
+
         if (!ver.isNewerThanOrEquals(ServerVersion.V_1_9)) return;
         // Shulker
         int shulkerIndex;
@@ -483,7 +506,9 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
         else if (ver.isNewerThanOrEquals(ServerVersion.V_1_15)) llamaIndex = 20;
         else if (ver.isNewerThanOrEquals(ServerVersion.V_1_14)) llamaIndex = 19;
         else llamaIndex = 17;
-        register(new EncodedIntegerProperty<DyeColor>("carpet_color", DyeColor.class, llamaIndex++, obj -> obj == null ? -1 : obj.ordinal()));
+
+        // Removed in 1.21
+        if (!ver.isNewerThanOrEquals(ServerVersion.V_1_21)) register(new EncodedIntegerProperty<DyeColor>("carpet_color", DyeColor.class, llamaIndex++, obj -> obj == null ? -1 : obj.ordinal()));
         register(new EncodedIntegerProperty<>("llama_variant", LlamaVariant.CREAMY, llamaIndex, Enum::ordinal));
 
         if (!ver.isNewerThanOrEquals(ServerVersion.V_1_12)) return;
@@ -663,8 +688,20 @@ public class EntityPropertyRegistryImpl implements EntityPropertyRegistry {
 
         if (!ver.isNewerThanOrEquals(ServerVersion.V_1_21)) return;
 
+        register(new EquipmentProperty(packetFactory, "body", EquipmentSlot.BODY));
+
         // Bogged
         register(new BooleanProperty("bogged_sheared", 16, false, legacyBooleans));
+
+        if (!ver.isNewerThanOrEquals(ServerVersion.V_1_21_2)) return;
+
+        // Creaking
+        register(new BooleanProperty("creaking_active", 17, false, legacyBooleans));
+
+        if (!ver.isNewerThanOrEquals(ServerVersion.V_1_21_4)) return;
+
+        // Creaking
+        register(new BooleanProperty("creaking_crumbling", 18, false, legacyBooleans));
     }
 
     private void registerSerializer(PropertySerializer<?> serializer) {

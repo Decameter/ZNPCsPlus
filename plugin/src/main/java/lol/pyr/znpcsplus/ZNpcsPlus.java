@@ -38,6 +38,7 @@ import lol.pyr.znpcsplus.parsers.*;
 import lol.pyr.znpcsplus.scheduling.FoliaScheduler;
 import lol.pyr.znpcsplus.scheduling.SpigotScheduler;
 import lol.pyr.znpcsplus.scheduling.TaskScheduler;
+import lol.pyr.znpcsplus.serialization.NpcSerializerRegistryImpl;
 import lol.pyr.znpcsplus.skin.cache.MojangSkinCache;
 import lol.pyr.znpcsplus.skin.cache.SkinCacheCleanTask;
 import lol.pyr.znpcsplus.storage.NpcStorageType;
@@ -93,7 +94,7 @@ public class ZNpcsPlus {
         packetEvents.load();
 
         configManager = new ConfigManager(getDataFolder());
-        skinCache = new MojangSkinCache(configManager);
+        skinCache = new MojangSkinCache(configManager, new File(getDataFolder(), "skins"));
         propertyRegistry = new EntityPropertyRegistryImpl(skinCache, configManager);
 
         NpcPropertyRegistryProvider.register(propertyRegistry);
@@ -135,8 +136,9 @@ public class ZNpcsPlus {
         ActionRegistryImpl actionRegistry = new ActionRegistryImpl();
         ActionFactoryImpl actionFactory = new ActionFactoryImpl(scheduler, adventure, textSerializer, bungeeConnector);
         NpcTypeRegistryImpl typeRegistry = new NpcTypeRegistryImpl();
+        NpcSerializerRegistryImpl serializerRegistry = new NpcSerializerRegistryImpl(packetFactory, configManager, actionRegistry, typeRegistry, propertyRegistry, textSerializer);
         NpcRegistryImpl npcRegistry = new NpcRegistryImpl(configManager, this, packetFactory, actionRegistry,
-                scheduler, typeRegistry, propertyRegistry, textSerializer);
+                scheduler, typeRegistry, propertyRegistry, serializerRegistry, textSerializer);
         shutdownTasks.add(npcRegistry::unload);
 
         UserManager userManager = new UserManager();
@@ -159,7 +161,7 @@ public class ZNpcsPlus {
         pluginManager.registerEvents(new UserListener(userManager), bootstrap);
 
         registerCommands(npcRegistry, skinCache, adventure, actionRegistry,
-                typeRegistry, propertyRegistry, importerRegistry, configManager, packetFactory);
+                typeRegistry, propertyRegistry, importerRegistry, configManager, packetFactory, serializerRegistry);
 
         log(ChatColor.WHITE + " * Starting tasks...");
         if (configManager.getConfig().checkForUpdates()) {
@@ -193,7 +195,7 @@ public class ZNpcsPlus {
             }
         }
 
-        NpcApiProvider.register(bootstrap, new ZNpcsPlusApi(npcRegistry, typeRegistry, propertyRegistry, actionRegistry, actionFactory, skinCache));
+        NpcApiProvider.register(bootstrap, new ZNpcsPlusApi(npcRegistry, typeRegistry, propertyRegistry, actionRegistry, actionFactory, skinCache, serializerRegistry));
         log(ChatColor.WHITE + " * Loading complete! (" + (System.currentTimeMillis() - before) + "ms)");
         log("");
 
@@ -246,7 +248,7 @@ public class ZNpcsPlus {
     private void registerCommands(NpcRegistryImpl npcRegistry, MojangSkinCache skinCache, BukkitAudiences adventure,
                                   ActionRegistryImpl actionRegistry, NpcTypeRegistryImpl typeRegistry,
                                   EntityPropertyRegistryImpl propertyRegistry, DataImporterRegistry importerRegistry,
-                                  ConfigManager configManager, PacketFactory packetFactory) {
+                                  ConfigManager configManager, PacketFactory packetFactory, NpcSerializerRegistryImpl serializerRegistry) {
 
         Message<CommandContext> incorrectUsageMessage = context -> context.send(Component.text("Incorrect usage: /" + context.getUsage(), NamedTextColor.RED));
         CommandManager manager = new CommandManager(bootstrap, adventure, incorrectUsageMessage);
@@ -296,6 +298,7 @@ public class ZNpcsPlus {
         registerEnumParser(manager, ArmadilloState.class, incorrectUsageMessage);
         registerEnumParser(manager, WoldVariant.class, incorrectUsageMessage);
         registerEnumParser(manager, NpcStorageType.class, incorrectUsageMessage);
+        registerEnumParser(manager, SkeletonType.class, incorrectUsageMessage);
 
         manager.registerCommand("npc", new MultiCommand(bootstrap.loadHelpMessage("root"))
                 .addSubcommand("center", new CenterCommand(npcRegistry))
@@ -322,7 +325,7 @@ public class ZNpcsPlus {
                         .addSubcommand("save", new SaveAllCommand(npcRegistry))
                         .addSubcommand("reload", new LoadAllCommand(npcRegistry))
                         .addSubcommand("import", new ImportCommand(npcRegistry, importerRegistry))
-                        .addSubcommand("migrate", new MigrateCommand(configManager, this, packetFactory, actionRegistry, typeRegistry, propertyRegistry, textSerializer, npcRegistry.getStorage(), configManager.getConfig().storageType(), npcRegistry)))
+                        .addSubcommand("migrate", new MigrateCommand(configManager, this, packetFactory, actionRegistry, typeRegistry, propertyRegistry, textSerializer, npcRegistry.getStorage(), configManager.getConfig().storageType(), npcRegistry, serializerRegistry)))
                 .addSubcommand("holo", new MultiCommand(bootstrap.loadHelpMessage("holo"))
                         .addSubcommand("add", new HoloAddCommand(npcRegistry))
                         .addSubcommand("additem", new HoloAddItemCommand(npcRegistry))
@@ -340,6 +343,7 @@ public class ZNpcsPlus {
                         .addSubcommand("delete", new ActionDeleteCommand(npcRegistry))
                         .addSubcommand("edit", new ActionEditCommand(npcRegistry, actionRegistry))
                         .addSubcommand("list", new ActionListCommand(npcRegistry)))
+                .addSubcommand("version", new VersionCommand(this))
         );
     }
 

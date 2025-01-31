@@ -7,21 +7,22 @@ import lol.pyr.znpcsplus.api.entity.PropertyHolder;
 import lol.pyr.znpcsplus.entity.PacketEntity;
 import lol.pyr.znpcsplus.packets.PacketFactory;
 import lol.pyr.znpcsplus.util.NpcLocation;
+import lol.pyr.znpcsplus.util.Viewable;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 public class HologramLine<M> implements PropertyHolder {
     private M value;
     private final PacketEntity entity;
     private final Set<EntityProperty<?>> properties;
 
-    public HologramLine(M value, PacketFactory packetFactory, EntityType type, NpcLocation location) {
+    public HologramLine(Viewable viewable, M value, PacketFactory packetFactory, EntityType type, NpcLocation location) {
         this.value = value;
-        this.entity = new PacketEntity(packetFactory, this, type, location);
+        this.entity = new PacketEntity(packetFactory, this, viewable, type, location);
         this.properties = new HashSet<>();
     }
 
@@ -37,16 +38,16 @@ public class HologramLine<M> implements PropertyHolder {
         entity.refreshMeta(player);
     }
 
-    protected void show(Player player) {
-        entity.spawn(player);
+    protected CompletableFuture<Void> show(Player player) {
+        return entity.spawn(player);
     }
 
     protected void hide(Player player) {
         entity.despawn(player);
     }
 
-    public void setLocation(NpcLocation location, Collection<Player> viewers) {
-        entity.setLocation(location, viewers);
+    public void setLocation(NpcLocation location) {
+        entity.setLocation(location);
     }
 
     public int getEntityId() {

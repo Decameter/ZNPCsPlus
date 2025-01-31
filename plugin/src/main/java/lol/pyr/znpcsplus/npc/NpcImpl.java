@@ -20,9 +20,12 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public class NpcImpl extends Viewable implements Npc {
@@ -38,6 +41,8 @@ public class NpcImpl extends Viewable implements Npc {
     private final Map<EntityPropertyImpl<?>, Object> propertyMap = new HashMap<>();
     private final List<InteractionAction> actions = new ArrayList<>();
 
+    private final Map<UUID, float[]> playerLookMap = new ConcurrentHashMap<>();
+
     protected NpcImpl(UUID uuid, EntityPropertyRegistryImpl propertyRegistry, ConfigManager configManager, LegacyComponentSerializer textSerializer, World world, NpcTypeImpl type, NpcLocation location, PacketFactory packetFactory) {
         this(uuid, propertyRegistry, configManager, packetFactory, textSerializer, world.getName(), type, location);
     }
@@ -48,14 +53,14 @@ public class NpcImpl extends Viewable implements Npc {
         this.type = type;
         this.location = location;
         this.uuid = uuid;
-        entity = new PacketEntity(packetFactory, this, type.getType(), location);
+        entity = new PacketEntity(packetFactory, this, this, type.getType(), location);
         hologram = new HologramImpl(propertyRegistry, configManager, packetFactory, textSerializer, location.withY(location.getY() + type.getHologramOffset()));
     }
 
     public void setType(NpcTypeImpl type) {
         UNSAFE_hideAll();
         this.type = type;
-        entity = new PacketEntity(packetFactory, this, type.getType(), entity.getLocation());
+        entity = new PacketEntity(packetFactory, this, this, type.getType(), entity.getLocation());
         hologram.setLocation(location.withY(location.getY() + type.getHologramOffset()));
         UNSAFE_showAll();
     }
@@ -85,18 +90,32 @@ public class NpcImpl extends Viewable implements Npc {
 
     public void setLocation(NpcLocation location) {
         this.location = location;
-        entity.setLocation(location, getViewers());
+        playerLookMap.clear();
+        playerLookMap.putAll(getViewers().stream().collect(Collectors.toMap(Player::getUniqueId, player -> new float[]{location.getYaw(), location.getPitch()})));
+        entity.setLocation(location);
         hologram.setLocation(location.withY(location.getY() + type.getHologramOffset()));
     }
 
     public void setHeadRotation(Player player, float yaw, float pitch) {
+        if (getHeadYaw(player) == yaw && getHeadPitch(player) == pitch) return;
+        playerLookMap.put(player.getUniqueId(), new float[]{yaw, pitch});
         entity.setHeadRotation(player, yaw, pitch);
     }
 
     public void setHeadRotation(float yaw, float pitch) {
         for (Player player : getViewers()) {
+            if (getHeadYaw(player) == yaw && getHeadPitch(player) == pitch) continue;
+            playerLookMap.put(player.getUniqueId(), new float[]{yaw, pitch});
             entity.setHeadRotation(player, yaw, pitch);
         }
+    }
+
+    public float getHeadYaw(Player player) {
+        return playerLookMap.getOrDefault(player.getUniqueId(), new float[]{location.getYaw(), location.getPitch()})[0];
+    }
+
+    public float getHeadPitch(Player player) {
+        return playerLookMap.getOrDefault(player.getUniqueId(), new float[]{location.getYaw(), location.getPitch()})[1];
     }
 
     public HologramImpl getHologram() {
@@ -125,13 +144,14 @@ public class NpcImpl extends Viewable implements Npc {
     }
 
     @Override
-    protected void UNSAFE_show(Player player) {
-        entity.spawn(player);
-        hologram.show(player);
+    protected CompletableFuture<Void> UNSAFE_show(Player player) {
+        playerLookMap.put(player.getUniqueId(), new float[]{location.getYaw(), location.getPitch()});
+        return CompletableFuture.allOf(entity.spawn(player), hologram.show(player));
     }
 
     @Override
     protected void UNSAFE_hide(Player player) {
+        playerLookMap.remove(player.getUniqueId());
         entity.despawn(player);
         hologram.hide(player);
     }
@@ -245,5 +265,30 @@ public class NpcImpl extends Viewable implements Npc {
 
     public void swingHand(boolean offHand) {
         for (Player viewer : getViewers()) entity.swingHand(viewer, offHand);
+    }
+
+    @Override
+    public @NotNull List<Integer> getPassengers() {
+        return entity.getPassengers();
+    }
+
+    @Override
+    public void addPassenger(int entityId) {
+        entity.addPassenger(entityId);
+    }
+
+    @Override
+    public void removePassenger(int entityId) {
+        entity.removePassenger(entityId);
+    }
+
+    @Override
+    public @Nullable Integer getVehicleId() {
+        return entity.getVehicleId();
+    }
+
+    @Override
+    public void setVehicleId(Integer vehicleId) {
+        entity.setVehicleId(vehicleId);
     }
 }

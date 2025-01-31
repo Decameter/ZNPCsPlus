@@ -64,4 +64,21 @@ public interface NpcRegistry {
      * @param id The ID of the NPC entry
      */
     void delete(String id);
+
+    /**
+     * Register an NPC to this registry
+     * NpcEntry instances can be obtained through the NpcSerializer classes
+     * @param entry The npc to be registered
+     */
+    void register(NpcEntry entry);
+
+    /**
+     * Reload all saveable npcs from storage
+     */
+    void reload();
+
+    /**
+     * Save all saveable npcs to storage
+     */
+    void save();
 }

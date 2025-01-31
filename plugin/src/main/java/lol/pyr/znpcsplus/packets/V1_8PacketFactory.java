@@ -18,6 +18,7 @@ import lol.pyr.znpcsplus.config.ConfigManager;
 import lol.pyr.znpcsplus.entity.EntityPropertyImpl;
 import lol.pyr.znpcsplus.entity.EntityPropertyRegistryImpl;
 import lol.pyr.znpcsplus.entity.PacketEntity;
+import lol.pyr.znpcsplus.entity.properties.attributes.AttributeProperty;
 import lol.pyr.znpcsplus.scheduling.TaskScheduler;
 import lol.pyr.znpcsplus.skin.BaseSkinDescriptor;
 import lol.pyr.znpcsplus.util.NamedColor;
@@ -47,14 +48,15 @@ public class V1_8PacketFactory implements PacketFactory {
     }
 
     @Override
-    public void spawnPlayer(Player player, PacketEntity entity, PropertyHolder properties) {
-        addTabPlayer(player, entity, properties).thenAccept(ignored -> {
+    public CompletableFuture<Void> spawnPlayer(Player player, PacketEntity entity, PropertyHolder properties) {
+        return addTabPlayer(player, entity, properties).thenAccept(ignored -> {
             createTeam(player, entity, properties.getProperty(propertyRegistry.getByName("glow", NamedColor.class)));
             NpcLocation location = entity.getLocation();
             sendPacket(player, new WrapperPlayServerSpawnPlayer(entity.getEntityId(),
                     entity.getUuid(), npcLocationToVector(location), location.getYaw(), location.getPitch(), Collections.emptyList()));
             sendPacket(player, new WrapperPlayServerEntityHeadLook(entity.getEntityId(), location.getYaw()));
             sendAllMetadata(player, entity, properties);
+            sendAllAttributes(player, entity, properties);
             scheduler.runLaterAsync(() -> removeTabPlayer(player, entity), configManager.getConfig().tabHideDelay());
         });
     }
@@ -70,6 +72,7 @@ public class V1_8PacketFactory implements PacketFactory {
                 new WrapperPlayServerSpawnEntity(entity.getEntityId(), Optional.of(entity.getUuid()), entity.getType(), npcLocationToVector(location),
                         location.getPitch(), location.getYaw(), location.getYaw(), 0, Optional.empty()));
         sendAllMetadata(player, entity, properties);
+        if (EntityTypes.isTypeInstanceOf(type, EntityTypes.LIVINGENTITY)) sendAllAttributes(player, entity, properties);
         createTeam(player, entity, properties.getProperty(propertyRegistry.getByName("glow", NamedColor.class)));
     }
 
@@ -153,6 +156,11 @@ public class V1_8PacketFactory implements PacketFactory {
         sendPacket(player, new WrapperPlayServerEntityEquipment(entity.getEntityId(), Collections.singletonList(equipment)));
     }
 
+    @Override
+    public void setPassengers(Player player, int vehicleEntityId, int... passengers) {
+        sendPacket(player, new WrapperPlayServerSetPassengers(vehicleEntityId, passengers));
+    }
+
     protected void sendPacket(Player player, PacketWrapper<?> packet) {
         packetEvents.getPlayerManager().sendPacket(player, packet);
     }
@@ -181,5 +189,20 @@ public class V1_8PacketFactory implements PacketFactory {
         sendPacket(player, new WrapperPlayServerEntityAnimation(entity.getEntityId(), offHand ?
                 WrapperPlayServerEntityAnimation.EntityAnimationType.SWING_OFF_HAND :
                 WrapperPlayServerEntityAnimation.EntityAnimationType.SWING_MAIN_ARM));
+    }
+
+    @Override
+    public void sendAllAttributes(Player player, PacketEntity entity, PropertyHolder properties) {
+        List<WrapperPlayServerUpdateAttributes.Property> attributesList = new ArrayList<>();
+        properties.getAppliedProperties()
+                .stream()
+                .filter(property -> property instanceof AttributeProperty)
+                .forEach(property -> ((AttributeProperty) property).apply(player, entity, false, attributesList));
+        sendPacket(player, new WrapperPlayServerUpdateAttributes(entity.getEntityId(), attributesList));
+    }
+
+    @Override
+    public void sendAttribute(Player player, PacketEntity entity, WrapperPlayServerUpdateAttributes.Property property) {
+        sendPacket(player, new WrapperPlayServerUpdateAttributes(entity.getEntityId(), Collections.singletonList(property)));
     }
 }

@@ -6,10 +6,12 @@ import lol.pyr.znpcsplus.api.interaction.InteractionAction;
 import lol.pyr.znpcsplus.util.NpcLocation;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Base class for all NPCs
@@ -135,14 +137,16 @@ public interface Npc extends PropertyHolder {
     /**
      * Shows this NPC to a player
      * @param player The {@link Player} to show to
+     * @return A future that completes when the npc is fully shown to the player
      */
-    void show(Player player);
+    CompletableFuture<Void> show(Player player);
 
     /**
      * Respawns this NPC for a player
      * @param player The {@link Player} to respawn for
+     * @return A future that completes when the npc is fully respawned
      */
-    void respawn(Player player);
+    CompletableFuture<Void> respawn(Player player);
 
     /**
      * Sets the head rotation of this NPC for a player
@@ -174,4 +178,35 @@ public interface Npc extends PropertyHolder {
      * @param offHand Should the hand be the offhand
      */
     void swingHand(boolean offHand);
+
+    /**
+     * Gets the passengers of this npc
+     * @return The list of entity ids of the passengers
+     */
+
+    @Nullable List<Integer> getPassengers();
+
+    /**
+     * Adds a passenger to this npc
+     * @param entityId The entity id of the passenger to add
+     */
+    void addPassenger(int entityId);
+
+    /**
+     * Removes a passenger from this npc
+     * @param entityId The entity id of the passenger to remove
+     */
+    void removePassenger(int entityId);
+
+    /**
+     * Gets the vehicle entity id of this npc
+     * @return The entity id of the vehicle
+     */
+    @Nullable Integer getVehicleId();
+
+    /**
+     * Sets the vehicle id of this npc
+     * @param vehicleId The entity id of the vehicle
+     */
+    void setVehicleId(Integer vehicleId);
 }
