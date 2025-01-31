@@ -309,6 +309,7 @@ public class ZNpcsPlus {
                 .addSubcommand("teleport", new TeleportCommand(npcRegistry))
                 .addSubcommand("list", new ListCommand(npcRegistry))
                 .addSubcommand("near", new NearCommand(npcRegistry))
+                .addSubcommand("forceunload", new ForceUnloadCommand(npcRegistry))
                 .addSubcommand("type", new TypeCommand(npcRegistry, typeRegistry))
                 .addSubcommand("setlocation", new SetLocationCommand(npcRegistry))
                 .addSubcommand("lookatme", new LookAtMeCommand(npcRegistry))

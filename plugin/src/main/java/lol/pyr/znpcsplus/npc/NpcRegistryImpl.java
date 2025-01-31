@@ -31,9 +31,9 @@ public class NpcRegistryImpl implements NpcRegistry {
     private final LegacyComponentSerializer textSerializer;
     private final EntityPropertyRegistryImpl propertyRegistry;
 
-    private final List<NpcEntryImpl> npcList = new ArrayList<>();
-    private final Map<String, NpcEntryImpl> npcIdLookupMap = new HashMap<>();
-    private final Map<UUID, NpcEntryImpl> npcUuidLookupMap = new HashMap<>();
+    public final List<NpcEntryImpl> npcList = new ArrayList<>();
+    public final Map<String, NpcEntryImpl> npcIdLookupMap = new HashMap<>();
+    public final Map<UUID, NpcEntryImpl> npcUuidLookupMap = new HashMap<>();
 
     public NpcRegistryImpl(ConfigManager configManager, ZNpcsPlus plugin, PacketFactory packetFactory, ActionRegistryImpl actionRegistry, TaskScheduler scheduler, NpcTypeRegistryImpl typeRegistry, EntityPropertyRegistryImpl propertyRegistry, LegacyComponentSerializer textSerializer) {
         this.textSerializer = textSerializer;
@@ -105,20 +105,24 @@ public class NpcRegistryImpl implements NpcRegistry {
 
     public Collection<NpcEntryImpl> getProcessable() {
         return Collections.unmodifiableCollection(npcList.stream()
+                .filter(Objects::nonNull)
                 .filter(NpcEntryImpl::isProcessed)
                 .collect(Collectors.toList()));
     }
 
     public Collection<NpcEntryImpl> getAllModifiable() {
         return Collections.unmodifiableCollection(npcList.stream()
+                .filter(Objects::nonNull)
                 .filter(NpcEntryImpl::isAllowCommandModification)
                 .collect(Collectors.toList()));
     }
 
     public NpcEntryImpl getByEntityId(int id) {
-        return npcList.stream().filter(entry -> entry.getNpc().getEntity().getEntityId() == id ||
-                        entry.getNpc().getHologram().getLines().stream().anyMatch(line -> line.getEntityId() == id)) // Also match the holograms of npcs
-                .findFirst().orElse(null);
+        return npcList.stream()
+                .filter(Objects::nonNull)
+                .filter(entry -> entry.getNpc().getEntity().getEntityId() == id || entry.getNpc().getHologram().getLines().stream().anyMatch(line -> line.getEntityId() == id)) // Also match the holograms of npcs
+                .findFirst()
+                .orElse(null);
     }
 
     public Collection<String> getAllIds() {
@@ -139,6 +143,7 @@ public class NpcRegistryImpl implements NpcRegistry {
 
     public Collection<String> getModifiableIds() {
         return Collections.unmodifiableSet(npcIdLookupMap.entrySet().stream()
+                .filter(Objects::nonNull)
                 .filter(entry -> entry.getValue().isAllowCommandModification())
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet()));

@@ -2,6 +2,7 @@ package lol.pyr.znpcsplus.tasks;
 
 import lol.pyr.znpcsplus.api.event.NpcDespawnEvent;
 import lol.pyr.znpcsplus.api.event.NpcSpawnEvent;
+import lol.pyr.znpcsplus.api.event.NpcTickEvent;
 import lol.pyr.znpcsplus.entity.EntityPropertyImpl;
 import lol.pyr.znpcsplus.entity.EntityPropertyRegistryImpl;
 import lol.pyr.znpcsplus.npc.NpcEntryImpl;
@@ -23,6 +24,8 @@ public class NpcProcessorTask extends BukkitRunnable {
     private final EntityPropertyRegistryImpl propertyRegistry;
     private final UserManager userManager;
 
+    private int ticks;
+
     public NpcProcessorTask(NpcRegistryImpl npcRegistry, EntityPropertyRegistryImpl propertyRegistry,UserManager userManager) {
         this.npcRegistry = npcRegistry;
         this.propertyRegistry = propertyRegistry;
@@ -30,6 +33,8 @@ public class NpcProcessorTask extends BukkitRunnable {
     }
 
     public void run() {
+        ticks++;
+
         EntityPropertyImpl<Integer> viewDistanceProperty = propertyRegistry.getByName("view_distance", Integer.class); // Not sure why this is an Integer, but it is
         EntityPropertyImpl<LookType> lookProperty = propertyRegistry.getByName("look", LookType.class);
         EntityPropertyImpl<Double> lookDistanceProperty = propertyRegistry.getByName("look_distance", Double.class);
@@ -56,6 +61,7 @@ public class NpcProcessorTask extends BukkitRunnable {
         Sound playerKnockbackSoundName = null;
         float playerKnockbackSoundVolume = 0;
         float playerKnockbackSoundPitch = 0;
+
         for (NpcEntryImpl entry : npcRegistry.getProcessable()) {
             NpcImpl npc = entry.getNpc();
             if (!npc.isEnabled()) continue;
@@ -77,56 +83,61 @@ public class NpcProcessorTask extends BukkitRunnable {
                 playerKnockbackSoundVolume = npc.getProperty(playerKnockbackSoundVolumeProperty);
                 playerKnockbackSoundPitch = npc.getProperty(playerKnockbackSoundPitchProperty);
             }
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                if (!player.getWorld().equals(npc.getWorld())) {
-                    if (npc.isVisibleTo(player)) npc.hide(player);
-                    continue;
-                }
-                if (permissionRequired && !player.hasPermission("znpcsplus.npc." + entry.getId())) {
-                    if (npc.isVisibleTo(player)) npc.hide(player);
-                    continue;
-                }
-                double distance = player.getLocation().distanceSquared(npc.getBukkitLocation());
 
-                // visibility
-                boolean inRange = distance <= NumberConversions.square(npc.getProperty(viewDistanceProperty));
-                if (!inRange && npc.isVisibleTo(player)) {
-                    NpcDespawnEvent event = new NpcDespawnEvent(player, entry);
-                    Bukkit.getPluginManager().callEvent(event);
-                    if (!event.isCancelled()) npc.hide(player);
-                }
-                if (inRange) {
-                    if (!npc.isVisibleTo(player)) {
-                        NpcSpawnEvent event = new NpcSpawnEvent(player, entry);
+            if (ticks % 3 == 0) {
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    if (!player.getWorld().equals(npc.getWorld())) {
+                        if (npc.isVisibleTo(player)) npc.hide(player);
+                        continue;
+                    }
+                    if (permissionRequired && !player.hasPermission("znpcsplus.npc." + entry.getId())) {
+                        if (npc.isVisibleTo(player)) npc.hide(player);
+                        continue;
+                    }
+                    double distance = player.getLocation().distanceSquared(npc.getBukkitLocation());
+
+                    // visibility
+                    boolean inRange = distance <= NumberConversions.square(npc.getProperty(viewDistanceProperty));
+                    if (!inRange && npc.isVisibleTo(player)) {
+                        NpcDespawnEvent event = new NpcDespawnEvent(player, entry);
                         Bukkit.getPluginManager().callEvent(event);
-                        if (event.isCancelled()) continue;
-                        npc.show(player);
+                        if (!event.isCancelled()) npc.hide(player);
                     }
-                    if (distance < closestDist) {
-                        closestDist = distance;
-                        closest = player;
-                    }
-                    if (lookType.equals(LookType.PER_PLAYER) && lookDistance >= distance) {
-                        NpcLocation expected = npc.getLocation().lookingAt(player.getLocation().add(0, -npc.getType().getHologramOffset(), 0));
-                        if (!expected.equals(npc.getLocation())) npc.setHeadRotation(player, expected.getYaw(), expected.getPitch());
-                    }
+                    if (inRange) {
+                        if (!npc.isVisibleTo(player)) {
+                            NpcSpawnEvent event = new NpcSpawnEvent(player, entry);
+                            Bukkit.getPluginManager().callEvent(event);
+                            if (event.isCancelled()) continue;
+                            npc.show(player);
+                        }
+                        if (distance < closestDist) {
+                            closestDist = distance;
+                            closest = player;
+                        }
+                        if (lookType.equals(LookType.PER_PLAYER) && lookDistance >= distance) {
+                            NpcLocation expected = npc.getLocation().lookingAt(player.getLocation().add(0, -npc.getType().getHologramOffset(), 0));
+                            if (!expected.equals(npc.getLocation()))
+                                npc.setHeadRotation(player, expected.getYaw(), expected.getPitch());
+                        }
 
-                    // player knockback
-                    User user = userManager.get(player.getUniqueId());
-                    if (playerKnockbackExemptPermission == null || !player.hasPermission(playerKnockbackExemptPermission)) {
-                        if (playerKnockback && distance <= playerKnockbackDistance && user.canKnockback(playerKnockbackCooldown)) {
-                            double x = npc.getLocation().getX() - player.getLocation().getX();
-                            double z = npc.getLocation().getZ() - player.getLocation().getZ();
-                            double angle = Math.atan2(z, x);
-                            double knockbackX = -Math.cos(angle) * playerKnockbackHorizontal;
-                            double knockbackZ = -Math.sin(angle) * playerKnockbackHorizontal;
-                            player.setVelocity(player.getVelocity().add(new Vector(knockbackX, playerKnockbackVertical, knockbackZ)));
-                            if (playerKnockbackSound)
-                                player.playSound(player.getLocation(), playerKnockbackSoundName, playerKnockbackSoundVolume, playerKnockbackSoundPitch);
+                        // player knockback
+                        User user = userManager.get(player.getUniqueId());
+                        if (playerKnockbackExemptPermission == null || !player.hasPermission(playerKnockbackExemptPermission)) {
+                            if (playerKnockback && distance <= playerKnockbackDistance && user.canKnockback(playerKnockbackCooldown)) {
+                                double x = npc.getLocation().getX() - player.getLocation().getX();
+                                double z = npc.getLocation().getZ() - player.getLocation().getZ();
+                                double angle = Math.atan2(z, x);
+                                double knockbackX = -Math.cos(angle) * playerKnockbackHorizontal;
+                                double knockbackZ = -Math.sin(angle) * playerKnockbackHorizontal;
+                                player.setVelocity(player.getVelocity().add(new Vector(knockbackX, playerKnockbackVertical, knockbackZ)));
+                                if (playerKnockbackSound)
+                                    player.playSound(player.getLocation(), playerKnockbackSoundName, playerKnockbackSoundVolume, playerKnockbackSoundPitch);
+                            }
                         }
                     }
                 }
             }
+
             // look property
             if (lookType.equals(LookType.CLOSEST_PLAYER)) {
                 if (closest != null && lookDistance >= closestDist) {
@@ -134,6 +145,9 @@ public class NpcProcessorTask extends BukkitRunnable {
                     if (!expected.equals(npc.getLocation())) npc.setHeadRotation(expected.getYaw(), expected.getPitch());
                 }
             }
+
+            NpcTickEvent npcTickEvent = new NpcTickEvent(entry);
+            Bukkit.getPluginManager().callEvent(npcTickEvent);
         }
     }
 }

@@ -18,6 +18,10 @@ public class BungeeConnector {
         player.sendPluginMessage(plugin, CHANNEL_NAME, createMessage("Connect", server));
     }
 
+    public void queuePlayer(Player player, String server) {
+        player.sendPluginMessage(plugin, CHANNEL_NAME, createMessage("ConnectQueue", server));
+    }
+
     @SuppressWarnings("UnstableApiUsage")
     private byte[] createMessage(String... parts) {
         ByteArrayDataOutput out = ByteStreams.newDataOutput();

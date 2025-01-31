@@ -7,6 +7,7 @@ import lol.pyr.znpcsplus.interaction.consolecommand.ConsoleCommandAction;
 import lol.pyr.znpcsplus.interaction.message.MessageAction;
 import lol.pyr.znpcsplus.interaction.playerchat.PlayerChatAction;
 import lol.pyr.znpcsplus.interaction.playercommand.PlayerCommandAction;
+import lol.pyr.znpcsplus.interaction.queue.QueueServerAction;
 import lol.pyr.znpcsplus.interaction.switchserver.SwitchServerAction;
 import lol.pyr.znpcsplus.scheduling.TaskScheduler;
 import lol.pyr.znpcsplus.util.BungeeConnector;
@@ -44,5 +45,9 @@ public class ActionFactoryImpl implements ActionFactory {
 
     public InteractionAction createSwitchServerAction(String server, InteractionType interactionType, long cooldown, long delay) {
         return new SwitchServerAction(bungeeConnector, server, interactionType, cooldown, delay);
+    }
+
+    public InteractionAction createQueueServerAction(String server, InteractionType interactionType, long cooldown, long delay) {
+        return new QueueServerAction(bungeeConnector, server, interactionType, cooldown, delay);
     }
 }
